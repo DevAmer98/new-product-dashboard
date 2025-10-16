@@ -88,8 +88,7 @@ export default function SingleOrderPage() {
   d ? new Date(d).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" }) : "—";
 
 
-  // 🕒 Calculate time difference between creation and delivery
-  const calculateDeliveryDuration = (created: string, delivered: string) => {
+ /* const calculateDeliveryDuration = (created: string, delivered: string) => {
     if (!created || !delivered) return "";
     const start = new Date(created);
     const end = new Date(delivered);
@@ -110,6 +109,31 @@ export default function SingleOrderPage() {
     }
     return { text: `Delivered in ${duration}`, isLate: false };
   };
+*/
+
+const calculateDeliveryDuration = (created: string, delivered: string) => {
+  if (!created || !delivered) {
+    return { text: "", isLate: false };
+  }
+
+  const start = new Date(created);
+  const end = new Date(delivered);
+  const diffMs = Math.abs(end.getTime() - start.getTime());
+
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const diffHours = Math.floor((diffMs / (1000 * 60 * 60)) % 24);
+  const diffMinutes = Math.floor((diffMs / (1000 * 60)) % 60);
+
+  const parts = [];
+  if (diffDays > 0) parts.push(`${diffDays} day${diffDays > 1 ? "s" : ""}`);
+  if (diffHours > 0) parts.push(`${diffHours} hr${diffHours > 1 ? "s" : ""}`);
+  if (diffMinutes > 0 && diffDays === 0) parts.push(`${diffMinutes} min`);
+
+  const duration = parts.join(" ");
+  const isLate = diffDays > 2;
+
+  return { text: duration ? `Delivered in ${duration}` : "", isLate };
+};
 
   if (loading)
     return (
