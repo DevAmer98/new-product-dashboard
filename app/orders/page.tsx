@@ -83,6 +83,7 @@ export default function Orders() {
   }, [fetchOrders]);
 
   // Color mapping for order statuses
+  /*
   const getStatusStyle = (status: string) => {
     const map: Record<string, string> = {
       Delivered: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -93,6 +94,23 @@ export default function Orders() {
     };
     return map[status] || "bg-gray-50 text-gray-600 border-gray-200";
   };
+*/
+
+
+function getStatusStyle(status?: string | null) {
+  switch ((status ?? "").toLowerCase()) {
+    case "pending":
+      return "bg-yellow-50 text-yellow-700 border-yellow-200";
+    case "approved":
+      return "bg-green-50 text-green-700 border-green-200";
+    case "delivered":
+      return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    case "cancelled":
+      return "bg-red-50 text-red-700 border-red-200";
+    default:
+      return "bg-gray-50 text-gray-600 border-gray-200";
+  }
+}
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white py-10 px-4 md:px-10">
