@@ -389,7 +389,7 @@ const calculateDeliveryDuration = (created: string, delivered: string) => {
   );
 }
 
-function StatusBadge({
+/*function StatusBadge({
   label,
   accepted,
   date,
@@ -397,7 +397,20 @@ function StatusBadge({
   label: string;
   accepted?: boolean;
   date?: string;
-}) {
+}) 
+*/
+
+
+function StatusBadge({
+  label,
+  accepted,
+  date,
+}: {
+  label: string;
+  accepted?: boolean;
+  date?: string | null;
+})
+{
   return (
     <div
       className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border ${
