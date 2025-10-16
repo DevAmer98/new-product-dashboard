@@ -461,9 +461,10 @@ function TotalRow({
   highlight,
 }: {
   label: string;
-  value?: string | number;
+  value?: string | number | null;
   highlight?: boolean;
-}) {
+})
+ {
   return (
     <div
       className={`flex justify-between items-center px-4 py-3 rounded-2xl ${
