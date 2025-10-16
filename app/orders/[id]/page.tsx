@@ -82,8 +82,11 @@ export default function SingleOrderPage() {
     fetchOrder();
   }, [id]);
 
-  const formatDate = (d?: string) =>
-    d ? new Date(d).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" }) : "—";
+
+
+  const formatDate = (d?: string | null) =>
+  d ? new Date(d).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" }) : "—";
+
 
   // 🕒 Calculate time difference between creation and delivery
   const calculateDeliveryDuration = (created: string, delivered: string) => {

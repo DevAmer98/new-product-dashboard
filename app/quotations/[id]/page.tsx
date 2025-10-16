@@ -80,10 +80,9 @@ export default function SingleQuotationPage() {
     fetchQuotation();
   }, [id]);
 
-  const formatDate = (d?: string) =>
-    d
-      ? new Date(d).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })
-      : "—";
+  const formatDate = (d?: string | null) =>
+  d ? new Date(d).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" }) : "—";
+
 
   const previewPdf = () => {
     if (!id) return;
