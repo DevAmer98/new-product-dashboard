@@ -1,11 +1,11 @@
 // app/lib/db.js
-// @ts-ignore
+/*
 import { Pool } from "pg";
 
 /**
  * Prefer DATABASE_URL if you have it (Neon, Supabase, Render, etc.)
  * Otherwise fall back to individual PG* vars.
- */
+
 const configFromEnv = () => {
   if (process.env.DATABASE_URL) {
     return {
@@ -35,7 +35,7 @@ const configFromEnv = () => {
  * Reasonable Pool tuning for Next.js:
  * - keepAlive to lower cold handshake costs
  * - small max to avoid exhausting serverless limits
- */
+ 
 const baseConfig = {
   max: Number(process.env.PG_MAX || 10),
   idleTimeoutMillis: Number(process.env.PG_IDLE || 30_000),
@@ -48,7 +48,7 @@ const poolConfig = { ...baseConfig, ...configFromEnv() };
 /**
  * Next.js dev hot-reload can create multiple Pools.
  * Stash a singleton on globalThis.
- */
+ 
 const globalForPg = globalThis;
 const pool =
   globalForPg.__PG_POOL__ || (globalForPg.__PG_POOL__ = new Pool(poolConfig));
@@ -67,7 +67,6 @@ export const query = (text, params) => pool.query(text, params);
  *     const { rows } = await client.query("SELECT ...");
  *     return rows;
  *   });
- */
 export const withTransaction = async (fn) => {
   const client = await pool.connect();
   try {
@@ -78,7 +77,7 @@ export const withTransaction = async (fn) => {
   } catch (err) {
     try {
       await client.query("ROLLBACK");
-    } catch { /* ignore */ }
+    } catch { /* ignore 
     throw err;
   } finally {
     client.release();
@@ -88,4 +87,4 @@ export const withTransaction = async (fn) => {
 // optional: graceful shutdown when Node process exits (not needed on Vercel)
 process.on("SIGINT", async () => {
   try { await pool.end(); } finally { process.exit(0); }
-});
+});*/
