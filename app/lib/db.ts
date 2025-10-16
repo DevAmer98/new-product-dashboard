@@ -1,4 +1,5 @@
 // app/lib/db.js
+// @ts-ignore
 import { Pool } from "pg";
 
 /**
