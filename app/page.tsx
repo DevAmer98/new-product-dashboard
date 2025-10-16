@@ -1,6 +1,3 @@
-
-
-
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
@@ -200,14 +197,16 @@ const seedUsers: User[] = [
   { id: "U3", name: "Fahad Al Harbi", email: "fahad@example.com", phone: "+966522222222", role: "Storekeeper", active: false },
 ];
 
+
+
+
+
 /* MAP (SSR OFF) */
 const MapView = dynamic(async () => {
   const L = await import("leaflet");
   await import("leaflet/dist/leaflet.css");
-  // fix marker icons in bundlers
-  // @ts-ignore
-  type IconDefaultPrototype = typeof L.Icon.Default.prototype & { _getIconUrl?: () => void };
-  delete (L.Icon.Default.prototype as IconDefaultPrototype)._getIconUrl;
+ type IconDefaultPrototype = typeof L.Icon.Default.prototype & { _getIconUrl?: () => void };
+delete (L.Icon.Default.prototype as IconDefaultPrototype)._getIconUrl;
   L.Icon.Default.mergeOptions({
     iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
     iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
@@ -220,7 +219,7 @@ const MapView = dynamic(async () => {
     return (
       <MapContainer center={[center.lat, center.lng]} zoom={12} scrollWheelZoom className="h-full w-full">
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="© OpenStreetMap" />
-        {drivers.map(driver => (
+        {drivers.map((driver: Driver) =>(
           <Marker key={driver.id} position={[driver.lat, driver.lng]}>
             <Popup>
               <div className="space-y-1">
@@ -230,7 +229,7 @@ const MapView = dynamic(async () => {
             </Popup>
           </Marker>
         ))}
-        {sales.map(sale => (
+        {sales.map((sale: MapSale) =>(
           <CircleMarker key={sale.id} center={[sale.lat, sale.lng]} radius={10} pathOptions={{ color }}>
             <Popup>
               <div className="space-y-1">
@@ -726,7 +725,7 @@ export default function ManagerDashboard() {
               </tr>
             </thead>
             <tbody>
-              {users.map(u => (
+              {users.map((u: User) => (
                 <tr key={u.id} className="border-t" style={{ borderColor: COLORS.border }}>
                   <td className="py-2">{u.name}</td>
                   <td className="py-2">{u.role}</td>
