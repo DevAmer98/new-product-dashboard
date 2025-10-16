@@ -20,10 +20,45 @@ import { motion } from "framer-motion";
 /*                      PAGE COMPONENT                           */
 /* ------------------------------------------------------------- */
 
+type OrderProduct = {
+  description?: string | null;
+  price?: number | string | null;
+  quantity?: number | string | null;
+  vat?: number | string | null;
+  subtotal?: number | string | null;
+  [key: string]: unknown;
+};
+
+type OrderDetail = {
+  id?: string;
+  custom_id?: string;
+  client_name?: string | null;
+  client_company?: string | null;
+  client_phone?: string | null;
+  delivery_type?: string | null;
+  delivery_date?: string | null;
+  actual_delivery_date?: string | null;
+  created_at?: string | null;
+  manageraccept?: string | null;
+  manageraccept_at?: string | null;
+  supervisoraccept?: string | null;
+  supervisoraccept_at?: string | null;
+  storekeeperaccept?: string | null;
+  storekeeperaccept_at?: string | null;
+  manager_notes?: string | null;
+  storekeeper_notes?: string | null;
+  notes?: string | null;
+  total_subtotal?: number | string | null;
+  total_vat?: number | string | null;
+  total_price?: number | string | null;
+  products?: OrderProduct[];
+  [key: string]: unknown;
+};
+
 export default function SingleOrderPage() {
   const { id } = useParams();
   const router = useRouter();
-  const [order, setOrder] = useState<any>(null);
+  const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,10 +68,13 @@ export default function SingleOrderPage() {
       try {
         const res = await fetch(`https://newproduct.newproducts.trade/api/orders/${id}`);
         if (!res.ok) throw new Error("Failed to fetch order");
-        const data = await res.json();
-        setOrder(data);
-      } catch (err: any) {
-        setError(err.message);
+        const data = (await res.json()) as unknown;
+        const detail = (data && typeof data === "object" && "order" in data
+          ? (data as Record<string, unknown>).order
+          : data) as OrderDetail | null;
+        setOrder(detail);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Failed to fetch order");
       } finally {
         setLoading(false);
       }
@@ -228,28 +266,22 @@ export default function SingleOrderPage() {
                       <th className="p-3 text-center font-semibold">Total (incl. VAT)</th>
                     </tr>
                   </thead>
-                  <tbody>
-                    
-
-                      {order.products.map((p: any, i: number) => {
-    const price = Number(p.price) || 0;
-    const qty = Number(p.quantity) || 0;
-    const vatValue = Number(p.vat ?? price * qty * 0.15); // ✅ force numeric
-    const subtotalValue = Number(p.subtotal ?? price * qty + vatValue);
-
+          <tbody>
+                    {order.products.map((product, index) => {
+                      const price = Number(product.price) || 0;
+                      const qty = Number(product.quantity) || 0;
+                      const vatValue = Number(product.vat ?? price * qty * 0.15);
+                      const subtotalValue = Number(product.subtotal ?? price * qty + vatValue);
 
                       return (
-                        <tr
-                          key={i}
-                          className="border-t border-gray-100 hover:bg-gray-50 transition-colors"
-                        >
-                          <td className="p-3">{i + 1}</td>
-        <td className="p-3">{p.description || "—"}</td>
-        <td className="p-3 text-center">{qty}</td>
-        <td className="p-3 text-center">{price.toFixed(2)} SAR</td>
-        <td className="p-3 text-center font-semibold text-gray-700">
-          {subtotalValue.toFixed(2)} SAR
-        </td>
+                        <tr key={index} className="border-t border-gray-100 hover:bg-gray-50 transition-colors">
+                          <td className="p-3">{index + 1}</td>
+                          <td className="p-3">{product.description || "—"}</td>
+                          <td className="p-3 text-center">{qty}</td>
+                          <td className="p-3 text-center">{price.toFixed(2)} SAR</td>
+                          <td className="p-3 text-center font-semibold text-gray-700">
+                            {subtotalValue.toFixed(2)} SAR
+                          </td>
                         </tr>
                       );
                     })}

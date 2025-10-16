@@ -14,16 +14,39 @@ import { FaAnglesLeft, FaAnglesRight } from "react-icons/fa6";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 
+type QuotationListItem = {
+  id?: string;
+  custom_id?: string;
+  client_name?: string | null;
+  client_company?: string | null;
+  client_region?: string | null;
+  client_phone?: string | null;
+  status?: string | null;
+  manageraccept?: string | null;
+  total_after_discount?: number | string | null;
+  total_price?: number | string | null;
+  created_at?: string | null;
+  username?: string | null;
+  [key: string]: unknown;
+};
+
+type QuotationsResponse = {
+  quotations?: unknown;
+  orders?: unknown;
+  currentPage?: number;
+  totalPages?: number;
+  totalCount?: number;
+};
+
 export default function Quotations() {
   const router = useRouter();
-  const [quotations, setQuotations] = useState([]);
+  const [quotations, setQuotations] = useState<QuotationListItem[]>([]);
   const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const limit = 10;
 
@@ -43,15 +66,20 @@ export default function Quotations() {
 
       const res = await fetch(url);
       if (!res.ok) throw new Error("Failed to fetch quotations");
-      const data = await res.json();
+      const data = (await res.json()) as QuotationsResponse;
 
-      const list = data.quotations || data.orders || [];
-      setQuotations(list);
-      setHasMore(data.currentPage < data.totalPages);
-      setTotalCount(data.totalCount);
-      setTotalPages(data.totalPages || 1);
-    } catch (e: any) {
-      setError(e.message);
+      const listSource = Array.isArray(data.quotations)
+        ? data.quotations
+        : Array.isArray(data.orders)
+        ? data.orders
+        : [];
+      setQuotations(listSource as QuotationListItem[]);
+      const currentPage = data.currentPage ?? page;
+      const totalPageCount = data.totalPages ?? 1;
+      setHasMore(currentPage < totalPageCount);
+      setTotalPages(totalPageCount);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to fetch quotations");
     } finally {
       setLoading(false);
     }

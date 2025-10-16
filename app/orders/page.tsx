@@ -14,16 +14,34 @@ import { FaAnglesLeft, FaAnglesRight } from "react-icons/fa6";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 
+type OrderListItem = {
+  id?: string;
+  custom_id?: string;
+  client_name?: string | null;
+  client_company?: string | null;
+  status?: string | null;
+  total_subtotal?: number | string | null;
+  created_at?: string | null;
+  username?: string | null;
+  [key: string]: unknown;
+};
+
+type OrdersResponse = {
+  orders?: unknown;
+  currentPage?: number;
+  totalPages?: number;
+  totalCount?: number;
+};
+
 export default function Orders() {
   const router = useRouter();
-  const [orders, setOrders] = useState([]);
+  const [orders, setOrders] = useState<OrderListItem[]>([]);
   const [filter, setFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const limit = 10;
 
@@ -45,15 +63,16 @@ export default function Orders() {
       )}&status=${filter}`;
       const res = await fetch(url);
       if (!res.ok) throw new Error("Failed to fetch orders");
-      const data = await res.json();
-      if (!data.orders) throw new Error("Invalid response format");
+      const data = (await res.json()) as OrdersResponse;
+      if (!Array.isArray(data.orders)) throw new Error("Invalid response format");
 
-      setOrders(data.orders);
-      setHasMore(data.currentPage < data.totalPages);
-      setTotalCount(data.totalCount);
-      setTotalPages(data.totalPages || 1);
-    } catch (e: any) {
-      setError(e.message);
+      setOrders(data.orders as OrderListItem[]);
+      const currentPage = data.currentPage ?? page;
+      const totalPageCount = data.totalPages ?? 1;
+      setHasMore(currentPage < totalPageCount);
+      setTotalPages(totalPageCount);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to fetch orders");
     } finally {
       setLoading(false);
     }

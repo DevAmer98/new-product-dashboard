@@ -3,6 +3,7 @@
 
 "use client";
 import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import dynamic from "next/dynamic";
 import {
   Search,
@@ -108,6 +109,35 @@ type LateNotification = {
   meta?: string;
 };
 
+type Driver = {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  status: string;
+};
+
+type User = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  role: string;
+  active: boolean;
+};
+
+type MapCenter = {
+  lat: number;
+  lng: number;
+};
+
+type MapComponentProps = {
+  drivers: Driver[];
+  sales: MapSale[];
+  center: MapCenter;
+  color: string;
+};
+
 const LATE_THRESHOLD_HOURS = 12;
 const LATE_THRESHOLD_MS = LATE_THRESHOLD_HOURS * 60 * 60 * 1000;
 
@@ -159,12 +189,12 @@ const pickFirstNumber = (...values: Array<unknown>) => {
 };
 
 /* DEMO DATA (drivers/users placeholders) */
-const seedDrivers = [
+const seedDrivers: Driver[] = [
   { id: "D-101", name: "Omar", lat: 24.7136, lng: 46.6753, status: "DELIVERING" },
   { id: "D-212", name: "Huda", lat: 24.7803, lng: 46.7386, status: "IDLE" },
   { id: "D-304", name: "Khalid", lat: 24.6408, lng: 46.717, status: "PICKING" },
 ];
-const seedUsers = [
+const seedUsers: User[] = [
   { id: "U1", name: "Mohammed Shaaban", email: "m.shaaban@example.com", phone: "+966500000000", role: "Sales", active: true },
   { id: "U2", name: "Noura Alanazi", email: "noura@example.com", phone: "+966511111111", role: "Driver", active: true },
   { id: "U3", name: "Fahad Al Harbi", email: "fahad@example.com", phone: "+966522222222", role: "Storekeeper", active: false },
@@ -176,7 +206,8 @@ const MapView = dynamic(async () => {
   await import("leaflet/dist/leaflet.css");
   // fix marker icons in bundlers
   // @ts-ignore
-  delete (L.Icon.Default.prototype as any)._getIconUrl;
+  type IconDefaultPrototype = typeof L.Icon.Default.prototype & { _getIconUrl?: () => void };
+  delete (L.Icon.Default.prototype as IconDefaultPrototype)._getIconUrl;
   L.Icon.Default.mergeOptions({
     iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
     iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
@@ -184,29 +215,29 @@ const MapView = dynamic(async () => {
   });
   const { MapContainer, TileLayer, Marker, Popup, CircleMarker, Polyline } = await import("react-leaflet");
 
-  function MapImpl(props: any) {
+  function MapImpl(props: MapComponentProps) {
     const { drivers, sales, center, color } = props;
     return (
       <MapContainer center={[center.lat, center.lng]} zoom={12} scrollWheelZoom className="h-full w-full">
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="© OpenStreetMap" />
-        {drivers.map((d: any) => (
-          <Marker key={d.id} position={[d.lat, d.lng]}>
+        {drivers.map(driver => (
+          <Marker key={driver.id} position={[driver.lat, driver.lng]}>
             <Popup>
               <div className="space-y-1">
-                <div className="font-semibold">{d.name} ({d.id})</div>
-                <div className="text-sm text-slate-500">Status: {d.status}</div>
+                <div className="font-semibold">{driver.name} ({driver.id})</div>
+                <div className="text-sm text-slate-500">Status: {driver.status}</div>
               </div>
             </Popup>
           </Marker>
         ))}
-        {sales.map((s: any) => (
-          <CircleMarker key={s.id} center={[s.lat, s.lng]} radius={10} pathOptions={{ color }}>
+        {sales.map(sale => (
+          <CircleMarker key={sale.id} center={[sale.lat, sale.lng]} radius={10} pathOptions={{ color }}>
             <Popup>
               <div className="space-y-1">
-                <div className="font-semibold">{s.client}</div>
-                <div className="text-sm text-slate-500">ID: {s.id}</div>
-                {typeof s.amount === "number" && Number.isFinite(s.amount) && (
-                  <div className="text-sm">Amount: {s.amount.toLocaleString()} SAR</div>
+                <div className="font-semibold">{sale.client}</div>
+                <div className="text-sm text-slate-500">ID: {sale.id}</div>
+                {typeof sale.amount === "number" && Number.isFinite(sale.amount) && (
+                  <div className="text-sm">Amount: {sale.amount.toLocaleString()} SAR</div>
                 )}
               </div>
             </Popup>
@@ -232,13 +263,13 @@ const MapView = dynamic(async () => {
 export default function ManagerDashboard() {
   // state
   const router = useRouter();
-  const [drivers, setDrivers] = useState(seedDrivers);
+  const [drivers, setDrivers] = useState<Driver[]>(seedDrivers);
   const [sales, setSales] = useState<MapSale[]>([]);
-  const [users, setUsers] = useState(seedUsers);
+  const [users, setUsers] = useState<User[]>(seedUsers);
   const [clients, setClients] = useState<Client[]>([]);
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [editingUser, setEditingUser] = useState<any | null>(null);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showUsersDrawer, setShowUsersDrawer] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
 
@@ -739,7 +770,7 @@ export default function ManagerDashboard() {
         </Modal>
       )}
 
-      {/* global utility styles */}
+      {/* Global utility styles */}
       <style jsx global>{`
         .chip { padding: 6px 12px; border: 1px solid var(--border); border-radius: 9999px; background: white; display: inline-flex; align-items: center; gap: 6px; }
         .btn { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--border); border-radius: 9999px; padding: 6px 12px; background: white; }
@@ -755,7 +786,7 @@ export default function ManagerDashboard() {
 }
 
 /* UI HELPERS */
-function NavCard({ children }: { children: React.ReactNode }) {
+function NavCard({ children }: { children: ReactNode }) {
   return (
     <div className="glass rounded-3xl border shadow-sm" style={{ borderColor: COLORS.border }}>
       <div className="p-3 space-y-1">{children}</div>
@@ -769,7 +800,7 @@ function NavItem({
   active = false,
   onClick,
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
   href?: string;
   active?: boolean;
@@ -857,43 +888,7 @@ function LateItemsCard({
   );
 }
 
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-3xl border overflow-hidden shadow-sm" style={{ borderColor: COLORS.border }}>
-      <div className="flex items-center justify-between px-4 py-3" style={{ background: COLORS.mintSoft, borderBottom: `1px solid ${COLORS.border}` }}>
-        <h3 className="font-semibold">{title}</h3>
-      </div>
-      <div className="p-4 bg-white">{children}</div>
-    </div>
-  );
-}
-function SimpleTable({ headers, rows }: { headers: string[]; rows: (string | number)[][] }) {
-  return (
-    <table className="w-full text-sm">
-      <thead className="text-left text-[color:var(--subtle)]">
-        <tr>{headers.map(h => <th key={h} className="py-2">{h}</th>)}</tr>
-      </thead>
-      <tbody>
-        {rows.map((r, i) => (
-          <tr key={i} className="border-t" style={{ borderColor: COLORS.border }}>
-            {r.map((c, j) => (
-              <td key={j} className="py-2">{c}</td>
-            ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
-function OverlayStat({ title, value }: { title: string; value: string }) {
-  return (
-    <div className="glass rounded-2xl border px-4 py-2 text-sm shadow" style={{ borderColor: COLORS.border }}>
-      <div className="text-[color:var(--subtle)]">{title}</div>
-      <div className="font-semibold">{value}</div>
-    </div>
-  );
-}
-function Drawer({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
+function Drawer({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-[1200] flex justify-end bg-black/40" onClick={onClose}>
       <div className="h-full w-full max-w-xl bg-white border-l overflow-auto" style={{ borderColor: COLORS.border }} onClick={(e) => e.stopPropagation()}>
@@ -906,7 +901,7 @@ function Drawer({ title, children, onClose }: { title: string; children: React.R
     </div>
   );
 }
-function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
+function Modal({ title, children, onClose }: { title: string; children: ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div className="w-full max-w-lg rounded-3xl border bg-white shadow-xl" style={{ borderColor: COLORS.border }} onClick={(e) => e.stopPropagation()}>
@@ -919,7 +914,7 @@ function Modal({ title, children, onClose }: { title: string; children: React.Re
     </div>
   );
 }
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block text-sm">
       <span className="block mb-1 text-[color:var(--subtle)]">{label}</span>

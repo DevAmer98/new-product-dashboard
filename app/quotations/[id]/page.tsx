@@ -20,10 +20,43 @@ import { useParams, useRouter } from "next/navigation";
 /*                           SINGLE QUOTATION PAGE                            */
 /* -------------------------------------------------------------------------- */
 
+type QuotationProduct = {
+  description?: string | null;
+  quantity?: number | string | null;
+  price?: number | string | null;
+  vat?: number | string | null;
+  subtotal?: number | string | null;
+  [key: string]: unknown;
+};
+
+type QuotationDetail = {
+  id?: string;
+  custom_id?: string;
+  client_name?: string | null;
+  client_company?: string | null;
+  client_phone?: string | null;
+  client_region?: string | null;
+  delivery_type?: string | null;
+  delivery_date?: string | null;
+  created_at?: string | null;
+  manageraccept?: string | null;
+  manageraccept_at?: string | null;
+  supervisoraccept?: string | null;
+  supervisoraccept_at?: string | null;
+  total_price?: number | string | null;
+  total_vat?: number | string | null;
+  total_subtotal?: number | string | null;
+  manager_notes?: string | null;
+  storekeeper_notes?: string | null;
+  notes?: string | null;
+  products?: QuotationProduct[];
+  [key: string]: unknown;
+};
+
 export default function SingleQuotationPage() {
   const { id } = useParams();
   const router = useRouter();
-  const [quotation, setQuotation] = useState<any>(null);
+  const [quotation, setQuotation] = useState<QuotationDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,10 +66,13 @@ export default function SingleQuotationPage() {
       try {
         const res = await fetch(`https://newproduct.newproducts.trade/api/quotations/${id}`);
         if (!res.ok) throw new Error("Failed to fetch quotation");
-        const data = await res.json();
-        setQuotation(data);
-      } catch (err: any) {
-        setError(err.message);
+        const data = (await res.json()) as unknown;
+        const detail = (data && typeof data === "object" && "quotation" in data
+          ? (data as Record<string, unknown>).quotation
+          : data) as QuotationDetail | null;
+        setQuotation(detail);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : "Failed to fetch quotation");
       } finally {
         setLoading(false);
       }
@@ -130,15 +166,15 @@ export default function SingleQuotationPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {quotation.products.map((p: any, i: number) => {
-                      const qty = Number(p.quantity) || 0;
-                      const price = Number(p.price) || 0;
-                      const vat = Number(p.vat ?? price * 0.15 * qty);
-                      const subtotal = Number(p.subtotal ?? price * qty + vat);
+                    {quotation.products.map((product, index) => {
+                      const qty = Number(product.quantity) || 0;
+                      const price = Number(product.price) || 0;
+                      const vat = Number(product.vat ?? price * 0.15 * qty);
+                      const subtotal = Number(product.subtotal ?? price * qty + vat);
                       return (
-                        <tr key={i} className="border-t border-gray-100 hover:bg-gray-50 transition">
-                          <td className="p-3">{i + 1}</td>
-                          <td className="p-3">{p.description || "—"}</td>
+                        <tr key={index} className="border-t border-gray-100 hover:bg-gray-50 transition">
+                          <td className="p-3">{index + 1}</td>
+                          <td className="p-3">{product.description || "—"}</td>
                           <td className="p-3 text-center">{qty}</td>
                           <td className="p-3 text-center">{price.toFixed(2)} SAR</td>
                           <td className="p-3 text-center text-gray-700">{vat.toFixed(2)} SAR</td>
