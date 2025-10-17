@@ -233,6 +233,36 @@ function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string;
   );
 }
 
+function StatusBadge({
+  label,
+  accepted,
+  date,
+}: {
+  label: string;
+  accepted?: boolean;
+  date?: string | null; // ✅ allow null
+}) {
+  return (
+    <div
+      className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border ${
+        accepted
+          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+          : "bg-yellow-50 text-yellow-700 border-yellow-200"
+      }`}
+    >
+      {accepted ? <FaCheckCircle /> : <FaTimesCircle />}
+      {label}: {accepted ? "Approved" : "Pending"}
+      {date && (
+        <span className="text-gray-500 ml-2 text-xs">
+          ({new Date(date).toLocaleDateString()})
+        </span>
+      )}
+    </div>
+  );
+}
+
+
+/*
 function StatusBadge({ label, accepted, date }: { label: string; accepted?: boolean; date?: string }) {
   return (
     <div
@@ -248,7 +278,7 @@ function StatusBadge({ label, accepted, date }: { label: string; accepted?: bool
     </div>
   );
 }
-
+*/
 function NoteCard({ title, text, color }: { title: string; text: string; color?: "gray" | "emerald" | "sky" }) {
   const colors = {
     gray: "bg-gray-50 border-gray-200 text-gray-700",
