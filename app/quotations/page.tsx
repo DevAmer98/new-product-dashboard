@@ -185,13 +185,14 @@ export default function Quotations() {
                     </div>
                   </div>
 
-                  <span
-                    className={`text-xs font-semibold px-2 py-0.5 border rounded-full ${getStatusStyle(
-                      q.status || q.manageraccept
-                    )}`}
-                  >
-                    {q.status || q.manageraccept || "Pending"}
-                  </span>
+                 <span
+  className={`text-xs font-semibold px-2 py-0.5 border rounded-full ${getStatusStyle(
+    (q.status ?? q.manageraccept ?? "pending").toLowerCase()
+  )}`}
+>
+  {q.status || q.manageraccept || "Pending"}
+</span>
+
                 </div>
 
                 {/* Quotation Info */}
