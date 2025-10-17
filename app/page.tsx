@@ -204,7 +204,6 @@ const seedUsers: User[] = [
 /* MAP (SSR OFF) */
 const MapView = dynamic(async () => {
   const L = await import("leaflet");
-  await import("leaflet/dist/leaflet.css");
  type IconDefaultPrototype = typeof L.Icon.Default.prototype & { _getIconUrl?: () => void };
 delete (L.Icon.Default.prototype as IconDefaultPrototype)._getIconUrl;
   L.Icon.Default.mergeOptions({
