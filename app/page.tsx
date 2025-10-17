@@ -93,7 +93,7 @@ type MapSale = {
   client: string;
   lat: number;
   lng: number;
-  amount?: number | null;
+  amount: number | null;
 };
 
 type LateNotification = {
