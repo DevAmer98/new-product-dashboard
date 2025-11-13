@@ -477,7 +477,7 @@ export default function ManagerDashboard() {
 
       acc.push({
         id: String(order.id),
-        title: order.client_name ?? order.client_company ?? `Order ${order.custom_id ?? order.id}`,
+        title: order.client_company ?? order.client_name ?? `Order ${order.custom_id ?? order.id}`,
         reference: `Order ${order.custom_id ?? order.id}`,
         waitingOn,
         lateFor: formatDuration(ageMs),
@@ -527,8 +527,8 @@ export default function ManagerDashboard() {
       acc.push({
         id: String(quotation.id),
         title:
+                  quotation.client_company ??
           quotation.client_name ??
-          quotation.client_company ??
           `Quotation ${quotation.custom_id ?? quotation.id}`,
         reference: `Quotation ${quotation.custom_id ?? quotation.id}`,
         waitingOn,
@@ -572,7 +572,7 @@ export default function ManagerDashboard() {
 
       acc.push({
         id: `delivery-${order.id}`,
-        title: order.client_name ?? order.client_company ?? `Order ${order.custom_id ?? order.id}`,
+        title: order.client_company  ?? order.client_name ?? `Order ${order.custom_id ?? order.id}`,
         reference: `Order ${order.custom_id ?? order.id}`,
         waitingOn: "Driver",
         lateFor: formatDuration(ageMs),
