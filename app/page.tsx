@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
 import dynamic from "next/dynamic";
 import {
   Search,
@@ -32,6 +32,7 @@ const COLORS = {
 
 type ApprovalRole = "Manager" | "Supervisor" | "Storekeeper" | "Driver";
 const API_BASE = "https://newproduct.newproducts.trade/api";
+const NOTIFY_API_BASE = process.env.NEXT_PUBLIC_NOTIFY_API_BASE ?? "/api";
 
 type Quotation = {
   id: string;
@@ -106,6 +107,11 @@ type LateNotification = {
   meta?: string;
 };
 
+type NotificationRequestState = {
+  status: "idle" | "loading" | "success" | "error";
+  message?: string;
+};
+
 type Driver = {
   id: string;
   name: string;
@@ -145,6 +151,13 @@ const ROLE_STYLES: Record<ApprovalRole, { badgeBg: string; badgeText: string }> 
   Driver: { badgeBg: "bg-sky-50", badgeText: "text-sky-600" },
 };
 
+const ROLE_TARGET_LABELS: Record<ApprovalRole, string> = {
+  Manager: "Managers",
+  Supervisor: "Supervisors",
+  Storekeeper: "Storekeepers",
+  Driver: "Drivers",
+};
+
 const formatDuration = (ms: number) => {
   if (ms <= 0) return "0m";
   const hours = Math.floor(ms / (60 * 60 * 1000));
@@ -157,6 +170,25 @@ const formatTimeLabel = (iso: string) => {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "Unknown time";
   return date.toLocaleString(undefined, { hour: "2-digit", minute: "2-digit" });
+};
+
+const formatRoleTarget = (role: ApprovalRole) => ROLE_TARGET_LABELS[role] ?? role;
+
+const getNotificationButtonLabel = (
+  role: ApprovalRole,
+  status: NotificationRequestState["status"]
+) => {
+  const target = formatRoleTarget(role);
+  switch (status) {
+    case "loading":
+      return `Notifying ${target}…`;
+    case "success":
+      return `${target} notified`;
+    case "error":
+      return `Retry ${target}`;
+    default:
+      return `Notify ${target}`;
+  }
 };
 
 const parseNumber = (value: unknown): number | null => {
@@ -270,6 +302,75 @@ export default function ManagerDashboard() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showUsersDrawer, setShowUsersDrawer] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
+  const [orderNotificationState, setOrderNotificationState] = useState<
+    Record<string, NotificationRequestState>
+  >({});
+
+  const notifyLateOrder = useCallback(
+    async (orderId: string, role: ApprovalRole, stateKey?: string) => {
+      const key = stateKey ?? orderId;
+      const target = formatRoleTarget(role);
+      setOrderNotificationState(prev => ({
+        ...prev,
+        [key]: { status: "loading" },
+      }));
+      try {
+        const response = await fetch(`${NOTIFY_API_BASE}/orders/${orderId}/notify`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ role }),
+        });
+
+        if (!response.ok) {
+          let serverMessage = "";
+          try {
+            serverMessage = await response.text();
+          } catch {
+            // ignore, no body
+          }
+          throw new Error(serverMessage || `Failed to notify ${target.toLowerCase()}`);
+        }
+
+        let payloadMessage: string | undefined;
+        try {
+          const payload = await response.json();
+          if (
+            payload &&
+            typeof payload === "object" &&
+            "message" in payload &&
+            typeof (payload as Record<string, unknown>).message === "string"
+          ) {
+            payloadMessage = (payload as Record<string, string>).message;
+          }
+        } catch {
+          // ignore json parse issues
+        }
+
+        setOrderNotificationState(prev => ({
+          ...prev,
+          [key]: {
+            status: "success",
+            message: payloadMessage || `${target} notified successfully.`,
+          },
+        }));
+      } catch (error) {
+        console.error("Failed to notify staff", error);
+        setOrderNotificationState(prev => ({
+          ...prev,
+          [key]: {
+            status: "error",
+            message:
+              error instanceof Error
+                ? error.message
+                : `Couldn't notify ${target.toLowerCase()}`,
+          },
+        }));
+      }
+    },
+    []
+  );
 
   // splash once per session (~1.3s)
   useEffect(() => {
@@ -673,6 +774,46 @@ export default function ManagerDashboard() {
                 const orderId = item.id.replace(/^delivery-/, "");
                 router.push(`/orders/${orderId}`);
               }}
+              actionBuilder={item => {
+                const notifyState = orderNotificationState[item.id]?.status ?? "idle";
+                const notifyMessage = orderNotificationState[item.id]?.message;
+                const isLoading = notifyState === "loading";
+                const isSuccess = notifyState === "success";
+                const isError = notifyState === "error";
+
+                const buttonClasses = [
+                  "w-full rounded-full border px-3 py-1.5 text-xs font-semibold transition text-center",
+                  isLoading ? "opacity-80 cursor-wait" : "",
+                  isSuccess
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : isError
+                    ? "bg-rose-50 text-rose-700 border-rose-200"
+                    : "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700",
+                ]
+                  .filter(Boolean)
+                  .join(" ");
+
+                return (
+                  <div className="space-y-1 text-left">
+                    <button
+                      type="button"
+                      className={buttonClasses}
+                      disabled={isLoading}
+                      onClick={event => {
+                        event.stopPropagation();
+                        notifyLateOrder(item.id, item.waitingOn);
+                      }}
+                    >
+                      {getNotificationButtonLabel(item.waitingOn, notifyState)}
+                    </button>
+                    {notifyMessage && (
+                      <p className={`text-[11px] ${isError ? "text-rose-600" : "text-emerald-600"}`}>
+                        {notifyMessage}
+                      </p>
+                    )}
+                  </div>
+                );
+              }}
             />
             <LateItemsCard
               title="Late Quotations"
@@ -691,6 +832,47 @@ export default function ManagerDashboard() {
               onItemClick={item => {
                 const orderId = item.id.replace(/^delivery-/, "");
                 router.push(`/orders/${orderId}`);
+              }}
+              actionBuilder={item => {
+                const internalOrderId = item.id.replace(/^delivery-/, "");
+                if (!internalOrderId) return null;
+                const notifyState = orderNotificationState[item.id]?.status ?? "idle";
+                const notifyMessage = orderNotificationState[item.id]?.message;
+                const isLoading = notifyState === "loading";
+                const isSuccess = notifyState === "success";
+                const isError = notifyState === "error";
+                const buttonClasses = [
+                  "w-full rounded-full border px-3 py-1.5 text-xs font-semibold transition text-center",
+                  isLoading ? "opacity-80 cursor-wait" : "",
+                  isSuccess
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : isError
+                    ? "bg-rose-50 text-rose-700 border-rose-200"
+                    : "bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700",
+                ]
+                  .filter(Boolean)
+                  .join(" ");
+
+                return (
+                  <div className="space-y-1 text-left">
+                    <button
+                      type="button"
+                      className={buttonClasses}
+                      disabled={isLoading}
+                      onClick={event => {
+                        event.stopPropagation();
+                        notifyLateOrder(internalOrderId, item.waitingOn, item.id);
+                      }}
+                    >
+                      {getNotificationButtonLabel(item.waitingOn, notifyState)}
+                    </button>
+                    {notifyMessage && (
+                      <p className={`text-[11px] ${isError ? "text-rose-600" : "text-emerald-600"}`}>
+                        {notifyMessage}
+                      </p>
+                    )}
+                  </div>
+                );
               }}
             />
           </div>
@@ -831,12 +1013,14 @@ function LateItemsCard({
   items,
   emptyMessage,
   onItemClick,
+  actionBuilder,
 }: {
   title: string;
   description: string;
   items: LateNotification[];
   emptyMessage: string;
   onItemClick?: (item: LateNotification) => void;
+  actionBuilder?: (item: LateNotification) => ReactNode;
 }) {
   return (
     <div className="glass rounded-3xl border p-4 shadow-sm" style={{ borderColor: COLORS.border }}>
@@ -855,13 +1039,24 @@ function LateItemsCard({
         <div className="mt-4 flex gap-3 overflow-x-auto pb-1 pr-2 snap-x snap-mandatory" role="list">
           {items.map(item => {
             const roleStyle = ROLE_STYLES[item.waitingOn] ?? ROLE_STYLES.Manager;
+            const isInteractive = Boolean(onItemClick);
+            const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+              if (!isInteractive) return;
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onItemClick?.(item);
+              }
+            };
+
             return (
-              <button
+              <div
                 key={item.id}
                 role="listitem"
+                tabIndex={isInteractive ? 0 : -1}
                 onClick={() => onItemClick?.(item)}
+                onKeyDown={handleKeyDown}
                 className="min-w-[260px] shrink-0 snap-start rounded-2xl border bg-white p-4 shadow-sm transition hover:border-rose-200 focus:outline-none focus:ring-2 focus:ring-rose-200"
-                style={{ borderColor: COLORS.border, cursor: onItemClick ? "pointer" : "default" }}
+                style={{ borderColor: COLORS.border, cursor: isInteractive ? "pointer" : "default" }}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="space-y-1">
@@ -877,7 +1072,8 @@ function LateItemsCard({
                   <span className="font-semibold text-rose-600">{item.lateFor} late</span>
                   <span>{item.requestedAtLabel}</span>
                 </div>
-              </button>
+                {actionBuilder && <div className="mt-3">{actionBuilder(item)}</div>}
+              </div>
             );
           })}
         </div>
