@@ -12,6 +12,7 @@ export const executeWithRetry = async <T>(
   }
 };
 
+/*
 export const withTimeout = async <T>(promise: Promise<T>, timeoutMs = 10_000): Promise<T> => {
   let timeoutId: NodeJS.Timeout;
   const timeoutPromise = new Promise<never>((_, reject) => {
@@ -21,5 +22,20 @@ export const withTimeout = async <T>(promise: Promise<T>, timeoutMs = 10_000): P
     return await Promise.race([promise, timeoutPromise]);
   } finally {
     clearTimeout(timeoutId);
+  }
+};
+*/
+
+export const withTimeout = async <T>(promise: Promise<T>, timeoutMs = 10_000): Promise<T> => {
+  let timeoutId: NodeJS.Timeout | null = null;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error("Operation timed out")), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
   }
 };
