@@ -241,7 +241,7 @@ export const sendLateQuotationNotification = async (
           `SELECT q.id,
                   q.custom_id,
                   q.client_id,
-                  COALESCE(q.client_name::text, c.client_name::text) AS client_name,
+                  c.client_name,
                   c.company_name AS client_company,
                   q.manageraccept,
                   q.supervisoraccept,
