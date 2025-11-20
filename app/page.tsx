@@ -112,6 +112,8 @@ type NotificationRequestState = {
   message?: string;
 };
 
+type NotificationEntity = "orders" | "quotations";
+
 type Driver = {
   id: string;
   name: string;
@@ -217,6 +219,8 @@ const pickFirstNumber = (...values: Array<unknown>) => {
   return null;
 };
 
+const buildNotificationStateKey = (scope: string, id: string | number) => `${scope}:${String(id)}`;
+
 /* DEMO DATA (drivers/users placeholders) */
 const seedDrivers: Driver[] = [
   { id: "D-101", name: "Omar", lat: 24.7136, lng: 46.6753, status: "DELIVERING" },
@@ -302,20 +306,28 @@ export default function ManagerDashboard() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showUsersDrawer, setShowUsersDrawer] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
-  const [orderNotificationState, setOrderNotificationState] = useState<
-    Record<string, NotificationRequestState>
-  >({});
+  const [notificationState, setNotificationState] = useState<Record<string, NotificationRequestState>>({});
 
-  const notifyLateOrder = useCallback(
-    async (orderId: string, role: ApprovalRole, stateKey?: string) => {
-      const key = stateKey ?? orderId;
+  const notifyLateItem = useCallback(
+    async ({
+      id,
+      role,
+      entity,
+      stateKey,
+    }: {
+      id: string;
+      role: ApprovalRole;
+      entity: NotificationEntity;
+      stateKey?: string;
+    }) => {
+      const key = stateKey ?? buildNotificationStateKey(entity, id);
       const target = formatRoleTarget(role);
-      setOrderNotificationState(prev => ({
+      setNotificationState(prev => ({
         ...prev,
         [key]: { status: "loading" },
       }));
       try {
-        const response = await fetch(`${NOTIFY_API_BASE}/orders/${orderId}/notify`, {
+        const response = await fetch(`${NOTIFY_API_BASE}/${entity}/${id}/notify`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -348,7 +360,7 @@ export default function ManagerDashboard() {
           // ignore json parse issues
         }
 
-        setOrderNotificationState(prev => ({
+        setNotificationState(prev => ({
           ...prev,
           [key]: {
             status: "success",
@@ -357,7 +369,7 @@ export default function ManagerDashboard() {
         }));
       } catch (error) {
         console.error("Failed to notify staff", error);
-        setOrderNotificationState(prev => ({
+        setNotificationState(prev => ({
           ...prev,
           [key]: {
             status: "error",
@@ -684,6 +696,82 @@ export default function ManagerDashboard() {
     }, []);
   }, [orders]);
 
+  const createNotificationAction = ({
+    scope,
+    entity,
+    colorVariant,
+    getTargetId,
+  }: {
+    scope: string;
+    entity: NotificationEntity;
+    colorVariant: "emerald" | "indigo";
+    getTargetId?: (item: LateNotification) => string | null;
+  }) => {
+    function NotificationAction(item: LateNotification): ReactNode {
+      const notifyTargetId = getTargetId ? getTargetId(item) : item.id;
+      if (!notifyTargetId) return null;
+      const stateKey = buildNotificationStateKey(scope, item.id);
+      const stateEntry = notificationState[stateKey];
+      const notifyState = stateEntry?.status ?? "idle";
+      const notifyMessage = stateEntry?.message;
+      const isLoading = notifyState === "loading";
+      const isSuccess = notifyState === "success";
+      const isError = notifyState === "error";
+
+      const baseIdleClass =
+        colorVariant === "emerald"
+          ? "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700"
+          : "bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700";
+
+      const buttonClasses = [
+        "w-full rounded-full border px-3 py-1.5 text-xs font-semibold transition text-center",
+        isLoading ? "opacity-80 cursor-wait" : "",
+        isSuccess
+          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+          : isError
+          ? "bg-rose-50 text-rose-700 border-rose-200"
+          : baseIdleClass,
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+      return (
+        <div className="space-y-1 text-left">
+          <button
+            type="button"
+            className={buttonClasses}
+            disabled={isLoading}
+            onClick={event => {
+              event.stopPropagation();
+              notifyLateItem({ entity, id: notifyTargetId, role: item.waitingOn, stateKey });
+            }}
+          >
+            {getNotificationButtonLabel(item.waitingOn, notifyState)}
+          </button>
+          {notifyMessage && (
+            <p className={`text-[11px] ${isError ? "text-rose-600" : "text-emerald-600"}`}>
+              {notifyMessage}
+            </p>
+          )}
+        </div>
+      );
+    }
+
+    return NotificationAction;
+  };
+
+  const orderActionBuilder = createNotificationAction({ scope: "order", entity: "orders", colorVariant: "emerald" });
+  const quotationActionBuilder = createNotificationAction({ scope: "quotation", entity: "quotations", colorVariant: "emerald" });
+  const deliveryActionBuilder = createNotificationAction({
+    scope: "delivery",
+    entity: "orders",
+    colorVariant: "indigo",
+    getTargetId: item => {
+      const orderId = item.id.replace(/^delivery-/, "");
+      return orderId || null;
+    },
+  });
+
   return (
     <div
       className="min-h-screen w-full"
@@ -774,46 +862,7 @@ export default function ManagerDashboard() {
                 const orderId = item.id.replace(/^delivery-/, "");
                 router.push(`/orders/${orderId}`);
               }}
-              actionBuilder={item => {
-                const notifyState = orderNotificationState[item.id]?.status ?? "idle";
-                const notifyMessage = orderNotificationState[item.id]?.message;
-                const isLoading = notifyState === "loading";
-                const isSuccess = notifyState === "success";
-                const isError = notifyState === "error";
-
-                const buttonClasses = [
-                  "w-full rounded-full border px-3 py-1.5 text-xs font-semibold transition text-center",
-                  isLoading ? "opacity-80 cursor-wait" : "",
-                  isSuccess
-                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                    : isError
-                    ? "bg-rose-50 text-rose-700 border-rose-200"
-                    : "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700",
-                ]
-                  .filter(Boolean)
-                  .join(" ");
-
-                return (
-                  <div className="space-y-1 text-left">
-                    <button
-                      type="button"
-                      className={buttonClasses}
-                      disabled={isLoading}
-                      onClick={event => {
-                        event.stopPropagation();
-                        notifyLateOrder(item.id, item.waitingOn);
-                      }}
-                    >
-                      {getNotificationButtonLabel(item.waitingOn, notifyState)}
-                    </button>
-                    {notifyMessage && (
-                      <p className={`text-[11px] ${isError ? "text-rose-600" : "text-emerald-600"}`}>
-                        {notifyMessage}
-                      </p>
-                    )}
-                  </div>
-                );
-              }}
+              actionBuilder={orderActionBuilder}
             />
             <LateItemsCard
               title="Late Quotations"
@@ -823,6 +872,7 @@ export default function ManagerDashboard() {
               onItemClick={item => {
                 router.push(`/quotations/${item.id}`);
               }}
+              actionBuilder={quotationActionBuilder}
             />
             <LateItemsCard
               title="Late Deliveries"
@@ -833,47 +883,7 @@ export default function ManagerDashboard() {
                 const orderId = item.id.replace(/^delivery-/, "");
                 router.push(`/orders/${orderId}`);
               }}
-              actionBuilder={item => {
-                const internalOrderId = item.id.replace(/^delivery-/, "");
-                if (!internalOrderId) return null;
-                const notifyState = orderNotificationState[item.id]?.status ?? "idle";
-                const notifyMessage = orderNotificationState[item.id]?.message;
-                const isLoading = notifyState === "loading";
-                const isSuccess = notifyState === "success";
-                const isError = notifyState === "error";
-                const buttonClasses = [
-                  "w-full rounded-full border px-3 py-1.5 text-xs font-semibold transition text-center",
-                  isLoading ? "opacity-80 cursor-wait" : "",
-                  isSuccess
-                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                    : isError
-                    ? "bg-rose-50 text-rose-700 border-rose-200"
-                    : "bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700",
-                ]
-                  .filter(Boolean)
-                  .join(" ");
-
-                return (
-                  <div className="space-y-1 text-left">
-                    <button
-                      type="button"
-                      className={buttonClasses}
-                      disabled={isLoading}
-                      onClick={event => {
-                        event.stopPropagation();
-                        notifyLateOrder(internalOrderId, item.waitingOn, item.id);
-                      }}
-                    >
-                      {getNotificationButtonLabel(item.waitingOn, notifyState)}
-                    </button>
-                    {notifyMessage && (
-                      <p className={`text-[11px] ${isError ? "text-rose-600" : "text-emerald-600"}`}>
-                        {notifyMessage}
-                      </p>
-                    )}
-                  </div>
-                );
-              }}
+              actionBuilder={deliveryActionBuilder}
             />
           </div>
 

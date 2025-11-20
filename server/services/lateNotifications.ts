@@ -27,6 +27,16 @@ type RoleConfig = {
   recipientTable: string;
 };
 
+interface QuotationRow {
+  id: string | number;
+  custom_id?: string | null;
+  client_name?: string | null;
+  client_company?: string | null;
+  manageraccept?: string | null;
+  supervisoraccept?: string | null;
+  status?: string | null;
+}
+
 const ROLE_CONFIG: Record<ApprovalRoleKey, RoleConfig> = {
   manager: {
     label: "Manager",
@@ -65,6 +75,12 @@ export type LateNotificationResult = {
 
 const isAccepted = (value?: string | null) => value?.toLowerCase() === "accepted";
 
+const normalizeEntityId = (rawId: string | number | undefined) => {
+  if (rawId == null) return "";
+  if (typeof rawId === "string") return rawId.trim();
+  return String(rawId);
+};
+
 const fetchRecipientTokens = async (client: PoolClient, role: ApprovalRoleKey) => {
   const { recipientTable } = ROLE_CONFIG[role];
   const result = await executeWithRetry(() =>
@@ -80,12 +96,6 @@ const fetchRecipientTokens = async (client: PoolClient, role: ApprovalRoleKey) =
   return result.rows.map(row => row.fcm_token).filter((token): token is string => Boolean(token));
 };
 
-const normalizeOrderId = (rawId: string | number | undefined) => {
-  if (rawId == null) return "";
-  if (typeof rawId === "string") return rawId.trim();
-  return String(rawId);
-};
-
 const normalizeRole = (roleInput: string | undefined): ApprovalRoleKey | "" => {
   if (!roleInput || typeof roleInput !== "string") return "";
   const normalized = roleInput.trim().toLowerCase();
@@ -99,7 +109,7 @@ export const sendLateOrderNotification = async (
   rawOrderId: string | number | undefined,
   roleInput: string | undefined
 ): Promise<LateNotificationResult> => {
-  const orderId = normalizeOrderId(rawOrderId);
+  const orderId = normalizeEntityId(rawOrderId);
   const normalizedRole = normalizeRole(roleInput);
 
   if (!orderId) {
@@ -191,6 +201,106 @@ export const sendLateOrderNotification = async (
     };
   } catch (error) {
     console.error("Failed to send late-order notification", error);
+    return {
+      status: 500,
+      body: {
+        error: "Failed to notify staff.",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+    };
+  } finally {
+    client.release();
+  }
+};
+
+const QUOTATION_ALLOWED_ROLES: ApprovalRoleKey[] = ["manager", "supervisor"];
+
+export const sendLateQuotationNotification = async (
+  rawQuotationId: string | number | undefined,
+  roleInput: string | undefined
+): Promise<LateNotificationResult> => {
+  const quotationId = normalizeEntityId(rawQuotationId);
+  const normalizedRole = normalizeRole(roleInput);
+
+  if (!quotationId) {
+    return { status: 400, body: { error: "Quotation id is required." } };
+  }
+
+  if (!normalizedRole || !QUOTATION_ALLOWED_ROLES.includes(normalizedRole)) {
+    return { status: 400, body: { error: "role must be manager or supervisor." } };
+  }
+
+  const roleConfig = ROLE_CONFIG[normalizedRole];
+  const client = await pool.connect();
+
+  try {
+    const quotationResult = await executeWithRetry(() =>
+      withTimeout(
+        client.query<QuotationRow>(
+          `SELECT q.id,
+                  q.custom_id,
+                  q.client_name,
+                  q.client_company,
+                  q.manageraccept,
+                  q.supervisoraccept,
+                  q.status
+           FROM quotations q
+           WHERE q.id = $1`,
+          [quotationId]
+        ),
+        10_000
+      )
+    );
+
+    if (quotationResult.rowCount === 0) {
+      return { status: 404, body: { error: "Quotation not found." } };
+    }
+
+    const quotation = quotationResult.rows[0];
+    const { label, pluralLabel, approvalColumn, dataRole } = roleConfig;
+
+    if (approvalColumn && isAccepted(quotation[approvalColumn])) {
+      return { status: 409, body: { message: `${label} already approved this quotation.` } };
+    }
+
+    const tokens = await fetchRecipientTokens(client, normalizedRole);
+    if (!tokens.length) {
+      return {
+        status: 202,
+        body: {
+          message: `No active ${pluralLabel.toLowerCase()} have a registered notification token.`,
+        },
+      };
+    }
+
+    const reference = quotation.custom_id ?? quotation.id;
+    const recipientName = quotation.client_company ?? quotation.client_name ?? "عميل";
+    const notificationTitle = `متابعة عرض سعر ${reference}`;
+    const notificationBody = `عرض السعر الخاص بـ ${recipientName} ينتظر موافقة ${label}.`;
+
+    const messages = tokens.map(token => ({
+      token,
+      notification: { title: notificationTitle, body: notificationBody },
+      data: {
+        quotationId: String(quotation.id),
+        customId: quotation.custom_id ? String(quotation.custom_id) : "",
+        role: dataRole,
+        entity: "quotation",
+      },
+    }));
+
+    const response = await executeWithRetry(() => withTimeout(admin.messaging().sendEach(messages), 15_000));
+
+    return {
+      status: 200,
+      body: {
+        message: `Notifications sent to ${pluralLabel}.`,
+        successCount: response.successCount,
+        failureCount: response.failureCount,
+      },
+    };
+  } catch (error) {
+    console.error("Failed to send late-quotation notification", error);
     return {
       status: 500,
       body: {
