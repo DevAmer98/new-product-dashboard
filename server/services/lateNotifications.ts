@@ -30,6 +30,7 @@ type RoleConfig = {
 interface QuotationRow {
   id: string | number;
   custom_id?: string | null;
+  client_id?: string | number | null;
   client_name?: string | null;
   client_company?: string | null;
   manageraccept?: string | null;
@@ -239,12 +240,14 @@ export const sendLateQuotationNotification = async (
         client.query<QuotationRow>(
           `SELECT q.id,
                   q.custom_id,
-                  q.client_name,
-                  q.client_company,
+                  q.client_id,
+                  COALESCE(q.client_name::text, c.client_name::text) AS client_name,
+                  c.company_name AS client_company,
                   q.manageraccept,
                   q.supervisoraccept,
                   q.status
            FROM quotations q
+           LEFT JOIN clients c ON c.id = q.client_id
            WHERE q.id = $1`,
           [quotationId]
         ),
