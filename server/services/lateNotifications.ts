@@ -258,8 +258,9 @@ export const sendLateQuotationNotification = async (
 
     const quotation = quotationResult.rows[0];
     const { label, pluralLabel, approvalColumn, dataRole } = roleConfig;
+    const quotationApprovalColumn = approvalColumn as keyof Pick<QuotationRow, "manageraccept" | "supervisoraccept"> | undefined;
 
-    if (approvalColumn && isAccepted(quotation[approvalColumn])) {
+    if (quotationApprovalColumn && isAccepted(quotation[quotationApprovalColumn])) {
       return { status: 409, body: { message: `${label} already approved this quotation.` } };
     }
 
