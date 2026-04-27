@@ -60,7 +60,7 @@ export default function Quotations() {
   const fetchQuotations = useCallback(async () => {
     try {
       setLoading(true);
-      const url = `https://newproduct.newproducts.trade/api/quotations?limit=${limit}&page=${page}&query=${encodeURIComponent(
+      const url = `${process.env.NEXT_PUBLIC_API_BASE ?? "https://app.newproducts.trade/api"}/quotations?limit=${limit}&page=${page}&query=${encodeURIComponent(
         search
       )}&status=${filter}`;
 
