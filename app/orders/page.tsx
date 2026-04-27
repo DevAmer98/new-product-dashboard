@@ -58,7 +58,7 @@ export default function Orders() {
   const fetchOrders = useCallback(async () => {
     try {
       setLoading(true);
-      const url = `${process.env.NEXT_PUBLIC_API_BASE ?? "https://app.newproducts.trade/api"}/orders?limit=${limit}&page=${page}&query=${encodeURIComponent(
+      const url = `https://newproduct.newproducts.trade/api/orders?limit=${limit}&page=${page}&query=${encodeURIComponent(
         search
       )}&status=${filter}`;
       const res = await fetch(url);

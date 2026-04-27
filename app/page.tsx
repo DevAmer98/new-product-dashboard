@@ -31,7 +31,7 @@ const COLORS = {
 };
 
 type ApprovalRole = "Manager" | "Supervisor" | "Storekeeper" | "Driver";
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "https://app.newproducts.trade/api";
+const API_BASE = "https://newproduct.newproducts.trade/api";
 const NOTIFY_API_BASE = process.env.NEXT_PUBLIC_NOTIFY_API_BASE ?? "/api";
 
 type Quotation = {
