@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { AlertCircle, RefreshCcw, Search, Users } from "lucide-react";
-import { FaArrowLeft } from "react-icons/fa";
 
 type FilterType = "all" | "my";
 
@@ -28,11 +27,10 @@ const FILTER_OPTIONS: { label: string; value: FilterType }[] = [
 ];
 
 export default function ClientsPage() {
-  const [clients, setClients] = useState<Client[]>([]);
+  const [allClients, setAllClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [filterType, setFilterType] = useState<FilterType>("all");
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -57,56 +55,34 @@ export default function ClientsPage() {
     return () => clearTimeout(handler);
   }, [searchInput]);
 
-  // reset pagination when toggling filter
+  // reset pagination when filter or search changes
   useEffect(() => {
     setPage(1);
-  }, [filterType]);
+  }, [filterType, username]);
 
-  const saveUsername = useCallback(
-    (value: string) => {
-      const trimmed = value.trim();
-      setUsername(trimmed);
-      if (typeof window !== "undefined") {
-        if (trimmed) {
-          window.localStorage.setItem("clientsUsername", trimmed);
-        } else {
-          window.localStorage.removeItem("clientsUsername");
-        }
+  const saveUsername = useCallback((value: string) => {
+    const trimmed = value.trim();
+    setUsername(trimmed);
+    if (typeof window !== "undefined") {
+      if (trimmed) {
+        window.localStorage.setItem("clientsUsername", trimmed);
+      } else {
+        window.localStorage.removeItem("clientsUsername");
       }
-      setReloadToken((token) => token + 1);
-    },
-    []
-  );
+    }
+  }, []);
 
-  // fetch when dependencies change
+  // fetch all clients once — the API returns a flat array, so we handle filtering client-side
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
 
     const run = async () => {
-      if (filterType === "my" && !username) {
-        setClients([]);
-        setTotalPages(1);
-        setLoading(false);
-        setError(null);
-        return;
-      }
-
       setLoading(true);
       setError(null);
 
       try {
-        const params = new URLSearchParams({
-          page: String(page),
-          limit: String(PAGE_SIZE),
-          search: searchQuery,
-        });
-        const endpoint = filterType === "my" ? "/myClients" : "/allClients";
-        if (filterType === "my") {
-          params.append("username", username);
-        }
-
-        const response = await fetch(`${API_BASE}${endpoint}?${params.toString()}`, {
+        const response = await fetch(`${API_BASE}/allClients`, {
           signal: controller.signal,
         });
 
@@ -117,17 +93,29 @@ export default function ClientsPage() {
         const data = await response.json();
         if (cancelled) return;
 
-        setClients(Array.isArray(data.clients) ? data.clients : []);
-        setTotalPages(Math.max(1, Number(data.totalPages) || 1));
+        // API returns either a flat array or { clients: [] }
+        const rawList: unknown[] = Array.isArray(data)
+          ? data
+          : Array.isArray(data.clients)
+          ? data.clients
+          : [];
+
+        const mapped: Client[] = rawList.map((item) => {
+          const r = item as Record<string, unknown>;
+          return {
+            ...r,
+            id: String(r._id ?? r.id ?? ""),
+            name: String(r.name ?? ""),
+          };
+        });
+
+        setAllClients(mapped);
       } catch (err) {
         if (cancelled || (err as Error).name === "AbortError") return;
         setError("Unable to load clients right now. Please try again.");
-        setClients([]);
-        setTotalPages(1);
+        setAllClients([]);
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        if (!cancelled) setLoading(false);
       }
     };
 
@@ -137,7 +125,43 @@ export default function ClientsPage() {
       cancelled = true;
       controller.abort();
     };
-  }, [page, searchQuery, filterType, username, reloadToken]);
+  }, [reloadToken]);
+
+  // client-side filtering by username and search query
+  const filteredClients = useMemo(() => {
+    let result = allClients;
+
+    if (filterType === "my" && username) {
+      const u = username.toLowerCase();
+      result = result.filter((c) => {
+        const createdBy = String(c.createdBy ?? "").toLowerCase();
+        return createdBy === u;
+      });
+    }
+
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (c) =>
+          String(c.name ?? "").toLowerCase().includes(q) ||
+          String(c.phone ?? "").toLowerCase().includes(q) ||
+          String(c.email ?? "").toLowerCase().includes(q) ||
+          String((c as Record<string, unknown>).contactName ?? "").toLowerCase().includes(q)
+      );
+    }
+
+    return result;
+  }, [allClients, filterType, username, searchQuery]);
+
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(filteredClients.length / PAGE_SIZE)),
+    [filteredClients]
+  );
+
+  const clients = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return filteredClients.slice(start, start + PAGE_SIZE);
+  }, [filteredClients, page]);
 
   const handleRefresh = useCallback(() => {
     setReloadToken((token) => token + 1);
