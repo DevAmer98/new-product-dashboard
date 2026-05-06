@@ -106,6 +106,17 @@ const normalizeRole = (roleInput: string | undefined): ApprovalRoleKey | "" => {
   return "";
 };
 
+const describeError = (error: unknown) => {
+  if (error instanceof AggregateError) {
+    const messages = error.errors
+      .map(item => (item instanceof Error ? item.message : String(item)))
+      .filter(Boolean);
+    return messages.length ? messages.join("; ") : error.message || "Unknown error";
+  }
+
+  return error instanceof Error ? error.message : "Unknown error";
+};
+
 export const sendLateOrderNotification = async (
   rawOrderId: string | number | undefined,
   roleInput: string | undefined
@@ -122,12 +133,14 @@ export const sendLateOrderNotification = async (
   }
 
   const roleConfig = ROLE_CONFIG[normalizedRole];
+  let client: PoolClient | undefined;
 
-  const client = await pool.connect();
   try {
+    client = await pool.connect();
+    const db = client;
     const orderResult = await executeWithRetry(() =>
       withTimeout(
-        client.query<OrderRow>(
+        db.query<OrderRow>(
           `SELECT o.id,
                   o.custom_id,
                   c.client_name,
@@ -165,7 +178,7 @@ export const sendLateOrderNotification = async (
       }
     }
 
-    const tokens = await fetchRecipientTokens(client, normalizedRole);
+    const tokens = await fetchRecipientTokens(db, normalizedRole);
     if (!tokens.length) {
       return {
         status: 202,
@@ -206,11 +219,11 @@ export const sendLateOrderNotification = async (
       status: 500,
       body: {
         error: "Failed to notify staff.",
-        details: error instanceof Error ? error.message : "Unknown error",
+        details: describeError(error),
       },
     };
   } finally {
-    client.release();
+    client?.release();
   }
 };
 
@@ -232,12 +245,14 @@ export const sendLateQuotationNotification = async (
   }
 
   const roleConfig = ROLE_CONFIG[normalizedRole];
-  const client = await pool.connect();
+  let client: PoolClient | undefined;
 
   try {
+    client = await pool.connect();
+    const db = client;
     const quotationResult = await executeWithRetry(() =>
       withTimeout(
-        client.query<QuotationRow>(
+        db.query<QuotationRow>(
           `SELECT q.id,
                   q.custom_id,
                   q.client_id,
@@ -267,7 +282,7 @@ export const sendLateQuotationNotification = async (
       return { status: 409, body: { message: `${label} already approved this quotation.` } };
     }
 
-    const tokens = await fetchRecipientTokens(client, normalizedRole);
+    const tokens = await fetchRecipientTokens(db, normalizedRole);
     if (!tokens.length) {
       return {
         status: 202,
@@ -309,10 +324,10 @@ export const sendLateQuotationNotification = async (
       status: 500,
       body: {
         error: "Failed to notify staff.",
-        details: error instanceof Error ? error.message : "Unknown error",
+        details: describeError(error),
       },
     };
   } finally {
-    client.release();
+    client?.release();
   }
 };

@@ -34,6 +34,35 @@ type ApprovalRole = "Manager" | "Supervisor" | "Storekeeper" | "Driver";
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "https://app.newproducts.trade/api";
 const NOTIFY_API_BASE = process.env.NEXT_PUBLIC_NOTIFY_API_BASE ?? "/api";
 
+const readErrorMessage = async (response: Response) => {
+  const contentType = response.headers.get("content-type") ?? "";
+
+  if (contentType.includes("application/json")) {
+    try {
+      const payload = await response.json();
+      if (payload && typeof payload === "object") {
+        const message = (payload as Record<string, unknown>).message;
+        const error = (payload as Record<string, unknown>).error;
+        if (typeof message === "string" && message.trim()) return message;
+        if (typeof error === "string" && error.trim()) return error;
+      }
+    } catch {
+      // fall back to the generic message below
+    }
+    return "";
+  }
+
+  try {
+    const text = await response.text();
+    if (text.trim().startsWith("<!DOCTYPE") || text.trim().startsWith("<html")) {
+      return "Notification API route was not found on the configured server.";
+    }
+    return text.trim();
+  } catch {
+    return "";
+  }
+};
+
 type Quotation = {
   id: string;
   custom_id?: string;
@@ -336,12 +365,7 @@ export default function ManagerDashboard() {
         });
 
         if (!response.ok) {
-          let serverMessage = "";
-          try {
-            serverMessage = await response.text();
-          } catch {
-            // ignore, no body
-          }
+          const serverMessage = await readErrorMessage(response);
           throw new Error(serverMessage || `Failed to notify ${target.toLowerCase()}`);
         }
 

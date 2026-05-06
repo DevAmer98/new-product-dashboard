@@ -1,6 +1,3 @@
-// app/api/orders/[id]/notify/route.ts
-console.log(">>> ROUTE FILE LOADED");
-
 import { NextRequest, NextResponse } from "next/server";
 import { sendLateOrderNotification } from "@/server/services/lateNotifications";
 
